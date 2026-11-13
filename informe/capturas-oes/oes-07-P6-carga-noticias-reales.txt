@@ -1,0 +1,19 @@
+﻿=== P6: carga de noticias reales verificadas (2026-11-13T17:30:42) ===
+Antes: 3 noticias
+Fila 2 [REGISTRADA] EL CAMINO A LA UNDC COMIENZA HOY, CEPRE UNDC INCIO EL CICLO  — Noticia registrada
+Fila 3 [REGISTRADA] Aula Magna 2026 abrió el debate sobre crecimiento económico, — Noticia registrada
+Fila 4 [REGISTRADA] Una casa contra las heladas: la PUCP y la Universidad Nacion — Noticia registrada
+Fila 5 [REGISTRADA] Reconocimiento al creador de un universo particular que nos  — Noticia registrada
+Resumen: 4 registradas, 0 duplicadas, 0 rechazadas
+--- Segundo intento (debe marcar duplicadas):
+Fila 2 [DUPLICADA] EL CAMINO A LA UNDC COMIENZA HOY, CEPRE UNDC INCIO EL CICLO  — Duplicada: ya existe una noticia con esa URL
+Fila 3 [DUPLICADA] Aula Magna 2026 abrió el debate sobre crecimiento económico, — Duplicada: ya existe una noticia con esa URL
+Fila 4 [DUPLICADA] Una casa contra las heladas: la PUCP y la Universidad Nacion — Duplicada: ya existe una noticia con esa URL
+Fila 5 [DUPLICADA] Reconocimiento al creador de un universo particular que nos  — Duplicada: ya existe una noticia con esa URL
+Resumen: 0 registradas, 4 duplicadas, 0 rechazadas
+Despues: 7 noticias | 4 verificadas
+institucion      fecha                                                                                                                                                          url
+       PUCP 2026-11-06 https://puntoedu.pucp.edu.pe/vida-universitaria/institucional/creador-de-un-universo-particular-que-nos-refleja-mircea-cartarescu-doctor-honoris-causa-pucp/
+       PUCP 2026-10-30           https://puntoedu.pucp.edu.pe/investigaciones/impacto-social/pucp-y-universidad-nacional-de-juliaca-unen-esfuerzos-asistir-poblaciones-altoandinas/
+       UNDC 2026-10-23                        https://web.undc.edu.pe/el-camino-a-la-undc-comienza-hoy-cepre-undc-incio-el-ciclo-ordinario-2026-ii-con-vacantes-de-ingreso-directo/
+       PUCP 2026-10-16 https://puntoedu.pucp.edu.pe/vida-universitaria/institucional/aula-magna-2026-abrio-el-debate-sobre-crecimiento-economico-desarrollo-humano-e-instituciones/

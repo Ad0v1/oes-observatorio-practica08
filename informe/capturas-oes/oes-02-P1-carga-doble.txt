@@ -1,0 +1,6 @@
+﻿=== P1: ejecutar carga dos veces (2026-11-13T17:30:17) ===
+Base creada: C:\Construccion por codigo\oes_laboratorio\oes.db
+Total de filas: 3
+Base creada: C:\Construccion por codigo\oes_laboratorio\oes.db
+Total de filas: 3
+Filas: 3 | URLs distintas: 3
