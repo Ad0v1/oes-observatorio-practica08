@@ -213,4 +213,10 @@ def filtrar(df: pd.DataFrame, categorias=None, texto: str = "", estados=None,
 
 def a_csv(df: pd.DataFrame) -> bytes:
     """Serializa el DataFrame a CSV UTF-8 con BOM (compatible con Excel)."""
-    return df.to_csv(index=False).encode("utf-8-sig")
+    copia = df.copy()
+    peligrosos = ("=", "+", "-", "@", "\t", "\r")
+    for col in copia.columns:
+        if not pd.api.types.is_numeric_dtype(copia[col]):
+            copia[col] = copia[col].map(
+                lambda v: "'" + v if isinstance(v, str) and v.startswith(peligrosos) else v)
+    return copia.to_csv(index=False).encode("utf-8-sig")

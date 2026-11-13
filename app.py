@@ -11,15 +11,23 @@ import oes_db
 st.set_page_config(page_title="OES — Prototipo académico", layout="wide")
 
 st.title("Observatorio de Educación Superior — Prototipo académico")
+st.caption("UNDC · Inteligencia Artificial aplicada al Marketing Digital · Práctica 08")
 st.caption(
     "Los registros marcados como «Ejemplo didáctico» son ilustrativos y no "
     "constituyen información verificada."
 )
 
 # --- Lectura de datos (nunca se crea la base desde aquí) ---
+@st.cache_data(ttl=300)
+def cargar_noticias(ruta: str, mtime: int) -> pd.DataFrame:
+    """Lectura en caché; la ruta y la fecha de modificación forman parte de la clave."""
+    return oes_db.leer_noticias()
+
+
 df = pd.DataFrame()
-if oes_db.ruta_db().exists():
-    df = oes_db.leer_noticias()
+_ruta = oes_db.ruta_db()
+if _ruta.exists():
+    df = cargar_noticias(str(_ruta), _ruta.stat().st_mtime_ns).copy()
 if df.empty:
     st.warning("No hay noticias. Ejecute preparar_datos.py")
     st.stop()
@@ -39,8 +47,27 @@ sel_cat = st.sidebar.multiselect(
 sel_estado = st.sidebar.multiselect(
     "Estado de verificación", estados_disp, default=estados_disp, key="f_estado"
 )
-rango = st.sidebar.date_input("Rango de fechas", value=(f_min, f_max), key="f_fechas")
+solo_ver = st.sidebar.toggle(
+    "Solo noticias verificadas", key="f_solo_verificadas", value=False
+)
+rango = st.sidebar.date_input(
+    "Rango de fechas", value=(f_min, f_max), key="f_fechas", format="DD/MM/YYYY"
+)
 texto = st.sidebar.text_input("Buscar título o institución", key="f_busqueda")
+
+
+def _restablecer():
+    st.session_state["f_categoria"] = list(categorias_disp)
+    st.session_state["f_estado"] = list(estados_disp)
+    st.session_state["f_solo_verificadas"] = False
+    st.session_state["f_fechas"] = (f_min, f_max)
+    st.session_state["f_busqueda"] = ""
+
+
+st.sidebar.button("Restablecer filtros", on_click=_restablecer)
+_cap = pd.to_datetime(df["fecha_captura"], errors="coerce").max()
+_cap_txt = _cap.strftime("%d/%m/%Y") if pd.notna(_cap) else "—"
+st.sidebar.caption(f"Base actualizada al {_cap_txt} · {len(df)} registros en total")
 
 # Tolerar que el usuario elija una sola fecha (rango incompleto)
 if isinstance(rango, (tuple, list)):
@@ -56,6 +83,22 @@ else:
 fil = oes_db.filtrar(
     df, categorias=sel_cat, texto=texto, estados=sel_estado, desde=desde, hasta=hasta
 )
+if solo_ver:
+    fil = fil[fil["estado_verificacion"] == "Verificada"]
+
+
+_PALETA = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442"]
+_TEMAS = list(oes_db.TEMAS)
+_COLORES = [_PALETA[i] if i < len(_PALETA) else "#7F7F7F" for i in range(len(_TEMAS))]
+_COLORES[_TEMAS.index("Sin tema")] = "#7F7F7F"
+
+
+def _color_tema(titulo="Tema"):
+    return alt.Color(
+        "tema:N", title=titulo,
+        scale=alt.Scale(domain=_TEMAS, range=_COLORES),
+        legend=alt.Legend(orient="bottom", labelLimit=0, columns=2, titleLimit=0),
+    )
 
 
 def _barras(serie):
@@ -77,6 +120,12 @@ c4.metric(
     "Verificadas",
     int((fil["estado_verificacion"] == "Verificada").sum()) if len(fil) else 0,
 )
+
+if len(fil):
+    _ult = pd.to_datetime(fil["fecha"], errors="coerce").max()
+    _pct = 100 * (fil["estado_verificacion"] == "Verificada").mean()
+    _ult_txt = _ult.strftime("%d/%m/%Y") if pd.notna(_ult) else "—"
+    st.caption(f"Última noticia: {_ult_txt} · {_pct:.0f} % verificadas")
 
 tab_pan, tab_not, tab_reg, tab_met = st.tabs(
     ["Panorama", "Noticias", "Registrar", "Metodología"]
@@ -116,28 +165,121 @@ with tab_pan:
                 x=alt.X("institucion:N", sort="-y", title=None,
                         axis=alt.Axis(labelAngle=-30, labelLimit=0)),
                 y=alt.Y("noticias:Q", title="Noticias"),
-                color=alt.Color("tema:N", title="Tema"),
+                color=_color_tema(),
                 tooltip=["institucion", "tema", "noticias"],
             ),
             width="stretch",
         )
         st.dataframe(matriz, width="stretch")
 
+        # --- Línea de tiempo ---
+        st.subheader("Línea de tiempo de noticias")
+        _t = fil.copy()
+        _t["_f"] = pd.to_datetime(_t["fecha"], errors="coerce")
+        _t = _t.dropna(subset=["_f"])
+        if len(_t):
+            _dias = (_t["_f"].max() - _t["_f"].min()).days
+            if _dias >= 28:
+                _t["periodo"] = _t["_f"].dt.to_period("W").dt.start_time
+                _tit = "Semana (inicio)"
+            else:
+                _t["periodo"] = _t["_f"].dt.normalize()
+                _tit = "Día"
+            _g = _t.groupby(["periodo", "institucion"]).size().reset_index(name="noticias")
+            st.altair_chart(
+                alt.Chart(_g).mark_bar().encode(
+                    x=alt.X("periodo:T", title=_tit, axis=alt.Axis(format="%d/%m")),
+                    y=alt.Y("noticias:Q", title="Noticias"),
+                    color=alt.Color(
+                        "institucion:N", title="Institución",
+                        scale=alt.Scale(range=_PALETA + ["#000000", "#999999"]),
+                        legend=alt.Legend(orient="bottom", labelLimit=0, titleLimit=0),
+                    ),
+                    tooltip=["periodo:T", "institucion", "noticias"],
+                ),
+                width="stretch",
+            )
+
+        # --- Perfil por institución ---
+        st.subheader("Perfil de institución")
+        _insts = sorted(fil["institucion"].dropna().unique())
+        _sel = st.selectbox("Perfil de institución", _insts, key="f_perfil")
+        _p = fil[fil["institucion"] == _sel]
+        _pf = pd.to_datetime(_p["fecha"], errors="coerce")
+        _pc1, _pc2, _pc3 = st.columns(3)
+        _pc1.metric("Noticias de la institución", len(_p))
+        _pc2.metric(
+            "% verificadas",
+            f"{100 * (_p['estado_verificacion'] == 'Verificada').mean():.0f} %",
+        )
+        _pc3.metric(
+            "Última noticia",
+            _pf.max().strftime("%d/%m/%Y") if pd.notna(_pf.max()) else "—",
+        )
+        _mt = _p["tema"].value_counts().rename_axis("tema").reset_index(name="noticias")
+        st.altair_chart(
+            alt.Chart(_mt).mark_bar().encode(
+                y=alt.Y("tema:N", sort="-x", title=None,
+                        axis=alt.Axis(labelLimit=0)),
+                x=alt.X("noticias:Q", title="Noticias",
+                        axis=alt.Axis(tickMinStep=1, format="d")),
+                color=_color_tema(),
+                tooltip=[alt.Tooltip("tema:N", title="Tema"),
+                         alt.Tooltip("noticias:Q", title="Cantidad")],
+            ),
+            width="stretch",
+        )
+        st.markdown("**Últimas 3 noticias**")
+        for _, _r in _p.assign(_f=_pf).sort_values("_f", ascending=False).head(3).iterrows():
+            _fx = _r["_f"].strftime("%d/%m/%Y") if pd.notna(_r["_f"]) else _r["fecha"]
+            st.markdown(f"- {_fx} · {_r['titulo']} — [Abrir nota]({_r['url']})")
+
 # --- Noticias ---
 with tab_not:
     if fil.empty:
         st.info("No hay resultados con esos filtros")
     else:
-        columnas = ["fecha", "institucion", "categoria", "tema", "titulo",
-                    "fuente", "estado_verificacion", "url"]
-        st.dataframe(
-            fil[columnas],
+        base = fil.reset_index(drop=True)
+        vista = base[["fecha", "institucion", "tema", "titulo",
+                      "estado_verificacion", "url"]].copy()
+        vista["fecha"] = pd.to_datetime(vista["fecha"], errors="coerce")
+        evento = st.dataframe(
+            vista,
             width="stretch",
             hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row",
+            key="t_noticias",
             column_config={
-                "url": st.column_config.LinkColumn("url", display_text="Abrir nota")
+                "fecha": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
+                "institucion": "Institución",
+                "tema": "Tema",
+                "titulo": st.column_config.TextColumn("Título", width="large"),
+                "estado_verificacion": "Estado",
+                "url": st.column_config.LinkColumn("Nota", display_text="Abrir nota"),
             },
         )
+        filas = evento.selection.rows if evento is not None else []
+        if filas and filas[0] < len(base):
+            r = base.iloc[filas[0]]
+            _f = pd.to_datetime(r["fecha"], errors="coerce")
+            _c = pd.to_datetime(r["fecha_captura"], errors="coerce")
+            with st.container(border=True):
+                st.subheader(str(r["titulo"]))
+                st.markdown(
+                    f"**Institución:** {r['institucion']}  \n"
+                    f"**Categoría:** {r['categoria']}  \n"
+                    f"**Tema:** {r['tema']}  \n"
+                    f"**Fuente:** {r['fuente']}  \n"
+                    f"**Fecha:** {_f.strftime('%d/%m/%Y') if pd.notna(_f) else r['fecha']}  \n"
+                    f"**Estado:** {r['estado_verificacion']}  \n"
+                    f"**Verificado por:** {r['verificado_por'] or '—'}  \n"
+                    f"**Fecha de captura:** {_c.strftime('%d/%m/%Y') if pd.notna(_c) else r['fecha_captura']}"
+                )
+                st.write(str(r["resumen"]))
+                st.link_button("Abrir nota", str(r["url"]))
+        else:
+            st.caption("Seleccione una fila para ver el detalle.")
         st.download_button(
             "Exportar CSV",
             data=oes_db.a_csv(fil),
@@ -176,7 +318,7 @@ with tab_reg:
             institucion = st.text_input("Institución")
             categoria = st.selectbox("Categoría", oes_db.CATEGORIAS)
             fuente = st.text_input("Fuente")
-            fecha = st.date_input("Fecha de publicación", value=date.today())
+            fecha = st.date_input("Fecha de publicación", value=date.today(), format="DD/MM/YYYY")
             url = st.text_input("URL directa de la nota")
             resumen = st.text_area("Resumen (redacción propia)")
             tema = st.selectbox("Tema", oes_db.TEMAS, index=len(oes_db.TEMAS) - 1)
@@ -191,6 +333,7 @@ with tab_reg:
                 "verificado_por": verificado_por or None,
             })
             if ok:
+                cargar_noticias.clear()
                 st.success(msg)
             else:
                 st.error(msg)
@@ -216,3 +359,11 @@ institucional; la matriz institución × tema solo describe la frecuencia de lo
 registrado.
 """
     )
+
+# --- Pie ---
+st.divider()
+st.caption(
+    "Prototipo académico, no es el OES comercial. Repositorio: "
+    "[github.com/Ad0v1/oes-observatorio-practica08]"
+    "(https://github.com/Ad0v1/oes-observatorio-practica08)"
+)
