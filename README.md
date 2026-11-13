@@ -4,6 +4,8 @@ Práctica Guiada N.° 08 · Python + SQLite + Streamlit. Registra, clasifica, co
 novedades de educación superior peruana con trazabilidad de fuentes. Implementación educativa
 original: no reproduce el código ni la identidad del OES comercial.
 
+**App publicada (solo lectura):** https://ad0v1-oes-observatorio-practica08-app-qcrrse.streamlit.app/
+
 ## Ejecutar en local (Windows)
 
 ```powershell
